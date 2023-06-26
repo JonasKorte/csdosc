@@ -1,56 +1,142 @@
 let serial;
-let pgmState = 0;
 
-//variabele om aan te geven welke poort je wilt gebruiken
-//op Mac is dit vaak iets als "/dev/tty.usbmodem..."
-//op Windows vaak "COM" met een cijfer erachter 
-let port = "COM3"
+let port = "/dev/tty.usbmodemOJA_0011";
+
+let isConnected = false;
+
+let velocities = [ 20, 30, 40, 50, 60, 70, 80, 90 ];
+let noteNums = [ 60, 62, 64, 65, 67, 69, 71, 72 ];
+
+let defaultVelocity = 100;
+
+let client;
+
+let strings = [];
+
+let numStringsH = 8;
+let numStringsV = 8;
+
+class HarpString {
+  constructor(xPos, yPos, orientation, mappedParam, value) {
+    this.xPos = xPos;
+    this.yPos = yPos;
+    this.state = 'idle';
+    this.idleRGB = [255, 0, 0];
+    this.clickedRGB = [0, 255, 255];
+    this.inactiveRGB = [100, 100, 100];
+    this.color = [0, 0, 0];
+    this.length = 280;
+    this.orientation = orientation;
+    this.thickness = 5;
+    this.mappedParam = mappedParam;
+    this.value = value;
+  }
+
+  draw() {
+    switch (this.state) {
+      case 'idle':
+        this.color = this.idleRGB;
+        break;
+      case 'clicked':
+        this.color = this.clickedRGB;
+        break;
+      case 'inactive':
+        this.color = this.inactiveRGB;
+        break;
+    }
+
+    stroke(this.color[0], this.color[1], this.color[2]);
+
+    strokeWeight(this.thickness);
+
+    if (this.orientation == 'V') {
+      line(this.xPos, this.yPos, this.xPos, this.yPos + this.length);
+    } else {
+      line(this.xPos, this.yPos, this.xPos + this.length, this.yPos);
+    }
+  }
+
+  trigger() {
+    this.state = 'clicked';
+  }
+}
+
+function connectToTeensy(serialPort) {
+  
+    serial.getPorts();
+    serial.openPort(serialPort, 9600);
+    /*
+    let conn = false;
+    while (!conn) {
+        serial.getSerialData(data => {
+          if (data == "REQ") {
+            serial.sendSerialData("OK");
+            conn = true;
+            console.log("Connected on port: " + serialPort + ".");
+          }
+        });
+        i++;
+    }
+    return conn;
+    */
+
+    return true;
+}
+
+function sendNote(noteNum, velocity) {
+  client.sendMessage("/note", noteNum);
+  console.log(noteNum);
+  strings[noteNums.indexOf(noteNum)].trigger();
+  strings[8 + velocities.indexOf(noteNum)].trigger();
+  client.sendMessage("/velocity", velocity);
+}
+
 function setup() {
-  //plaats hier de code die maar één keer hoeft te worden uitgevoerd
   createCanvas(800,600);
   background(255);
+  frameRate(60);
 
-  //creeër nieuw Serial object
   serial = new Serial();
-  
-  //laat alle beschikbare seriële devices zien
-  serial.getPorts();
+  isConnected = connectToTeensy(port);
 
-  //open de poort met het geslecteerde device
-  serial.openPort(port,9600);
-  
-  //lees de seriële data en log naar de console
-  serial.getSerialData(data => {
-    console.log(data);
-  });
+  client = new Client();
+  client.startClient("127.0.0.1", 5808);
 
-  //stuur seriële data
-  //stuur een berichtje "on" naar de teensy
-  serial.sendSerialData("on");
-  setTimeout(_ => {
-    //stuur na 2 seconden een bericht "of naar de Teensy"
-    //dit is alleen om te testen of je Seriële verbinding werkt
-    serial.sendSerialData("off");
-  },2000)
+  for (let i = 0; i < numStringsH; i++) {
+    strings[i] = new HarpString(100, (i * 40) + 100, 'H', '/velocity', 20);
+  }
+
+  for (let i = 0; i < numStringsV; i++) {
+    strings[i + 8] = new HarpString((i * 40) + 100, 100, 'V', '/note', 20);
+  }
 }
 
 function draw() {
-  //plaats hier de code die continue herhaald moet worden.
-}
+  background(0);
 
-function keyPressed() {
-  //als op je spatie drukt, wordt de poort gesloten of geopend
-  //zodat je makkelijk kan programmeren.
-  if (key === ' ') {
-    if (pgmState === 0) {
-      serial.closePort();
-      pgmState = 1;
-      console.log("Serial port is closed: " + port)
-    }
-    else if (pgmState === 1) {
-      serial.openPort(port,9600);
-      pgmState = 0;
-      console.log("Serial port is open: " + port);
-    }
+  for (let i = 0; i < strings.length; i++) {
+    strings[i].draw();
   }
+
+  let currentVelocities = [ 0, 0, 0, 0, 0, 0, 0, 0 ];
+
+  let currentPlayingNotes = {
+
+  };
+
+  serial.getSerialData(data => {
+    
+    let sensorIndex = data.split('=')[0];
+    let value = Boolean(data.split('=')[1]);
+
+
+    if (parseInt(data.split('=')[1]) < 100) {
+      sendNote(60, 90);
+    } else {
+      sendNote(60, 0);
+    }
+
+  });
+
+
 }
