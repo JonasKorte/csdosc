@@ -1,6 +1,6 @@
 let serial;
 
-let port = "/dev/tty.usbmodemOJA_0011";
+let port = "/dev/tty.usbmodemOJA_0013";
 
 let isConnected = false;
 
@@ -15,6 +15,8 @@ let strings = [];
 
 let numStringsH = 8;
 let numStringsV = 8;
+
+let pVelocity = [0, 0, 0, 0, 0, 0, 0, 0];
 
 class HarpString {
   constructor(xPos, yPos, orientation, mappedParam, value) {
@@ -59,6 +61,9 @@ class HarpString {
   trigger() {
     this.state = 'clicked';
   }
+  untrigger() {
+    this.state = 'idle';
+  }
 }
 
 function connectToTeensy(serialPort) {
@@ -85,9 +90,6 @@ function connectToTeensy(serialPort) {
 
 function sendNote(noteNum, velocity) {
   client.sendMessage("/note", noteNum);
-  console.log(noteNum);
-  strings[noteNums.indexOf(noteNum)].trigger();
-  strings[8 + velocities.indexOf(noteNum)].trigger();
   client.sendMessage("/velocity", velocity);
 }
 
@@ -97,7 +99,7 @@ function setup() {
   frameRate(60);
 
   serial = new Serial();
-  isConnected = connectToTeensy(port);
+  isConnected = connectToTeensy("/dev/tty.usbmodemOJA_0013");
 
   client = new Client();
   client.startClient("127.0.0.1", 5808);
@@ -125,18 +127,23 @@ function draw() {
   };
 
   serial.getSerialData(data => {
-    
-    let sensorIndex = data.split('=')[0];
-    let value = Boolean(data.split('=')[1]);
 
-
-    if (parseInt(data.split('=')[1]) < 100) {
-      sendNote(60, 90);
-    } else {
-      sendNote(60, 0);
-    }
+    trigger(parseInt(data));
 
   });
 
 
+}
+
+async function trigger(index) {
+  strings[index].trigger();
+  await sleep(300);
+  strings[index].untrigger();
+}
+
+function sleep(millisecondsDuration)
+{
+  return new Promise((resolve) => {
+    setTimeout(resolve, millisecondsDuration);
+  })
 }
